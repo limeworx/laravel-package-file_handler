@@ -15,5 +15,13 @@
         "psr-4": {
             "Limeworx\\FileHandler\\":"src/"
         }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Limeworx\\FileHandler\\ServiceProvider"
+            ]
+        }
     }
 }
+
