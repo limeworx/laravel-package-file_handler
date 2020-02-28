@@ -1,0 +1,19 @@
+{
+    "name": "limeworx/filehandler",
+    "description": "This package is used to upload, delete, fetch and edit files on an S3 bucket and your database.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Vince Cole",
+            "email": "vince@limeworx.uk"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {},
+    "autoload":{
+        "psr-4": {
+            "Limeworx\\FileHandler\\":"src/"
+        }
+    }
+}
