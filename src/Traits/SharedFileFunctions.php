@@ -5,14 +5,10 @@ namespace Limeworx\FileHandler\Traits;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Limeworx\FileHandler\Models\FileUploads;
+use Image;
 
 trait SharedFileFunctions
 {
-    //protected function showSearchResults(Request $request)
-    //{
-        // Stuff
-    //}
-
     protected function FlagFileAsDeleted($name)
     {
         $r=FileUploads::where([
@@ -101,11 +97,44 @@ trait SharedFileFunctions
         $fp = "images/bupa-booking/$token/$ft/$ts/$filename.$file_extension";
         //echo $fp;
 
-        
-        
+        //Return object set up (mostly for figuring out what i need).
+        $return = array(
+                            'src'=>'', 
+                            'thumbs'=>array(
+                                'large'=>'',
+                                'medium'=>'',
+                                'small'=>''
+                            )
+                        );
+        //Does file exist?
         $r=Storage::disk('s3')->exists('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/'.$filename.'.'.$file_extension);
         if($r){
-            return array(true, 'images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/'.$filename.'.'.$file_extension);
+            $return['src']='images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/'.$filename.'.'.$file_extension;
+
+            //Do thumbs exist?
+            $l_thumb = Storage::disk('s3')->exists('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_large.'.$file_extension);
+            $m_thumb = Storage::disk('s3')->exists('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_medium.'.$file_extension);
+            $s_thumb = Storage::disk('s3')->exists('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_small.'.$file_extension);
+            if($l_thumb){
+                $return['thumbs']['large']='images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_large.'.$file_extension;
+            }else{
+                $return['thumbs']['large']=false;
+            }
+
+            if($m_thumb){
+                $return['thumbs']['medium']='images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_medium.'.$file_extension;
+            }else{
+                $return['thumbs']['medium']=false;
+            }
+
+            if($s_thumb){
+                $return['thumbs']['small']='images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_small.'.$file_extension;
+            }else{
+                $return['thumbs']['small']=false;
+            }
+
+
+            return array(true, $return);
         }else{
             return array(false, "File doesn't exist on S3.  Please check the name and try again.");
         }
@@ -125,4 +154,79 @@ trait SharedFileFunctions
         return array(false, 'Unable to proceed - couldn\'t locate file in the database.');
         
     }
+
+
+    /**
+     * 
+     * Thumbnail Functions
+     * 
+     */
+
+     protected function GenerateThumbnails($file){
+
+        //Width
+        $w = Image::make($file)->width();
+        //Height
+        $h = Image::make($file)->height();
+        
+        //Our start point values, which will be manipulated by our ratio value to calulate the thumbnail sizes.  Sizes in PX
+        $large = 600;
+        $medium = 400;
+        $small = 250;
+        $ratio = 1.5;
+
+
+        if($w>$h)
+        {
+            //Landscape thumb required
+            $l_height = $large/$ratio;
+            $m_height = $medium/$ratio;
+            $s_height = $small/$ratio;
+            
+            $l_thumb = $this->GetThumbnailsFromDimensions(array('width'=>$large, 'height'=>$l_height),$file);
+            $m_thumb = $this->GetThumbnailsFromDimensions(array('width'=>$medium, 'height'=>$m_height),$file);
+            $s_thumb = $this->GetThumbnailsFromDimensions(array('width'=>$small, 'height'=>$s_height),$file);
+        }
+        elseif($w<$h)
+        {
+            //Portrait thumb required
+            $l_width = $large/$ratio;
+            $m_width = $medium/$ratio;
+            $s_width = $small/$ratio;
+            
+            $l_thumb = $this->GetThumbnailsFromDimensions(array('width'=>$l_width, 'height'=>$large), $file);
+            $m_thumb = $this->GetThumbnailsFromDimensions(array('width'=>$m_width, 'height'=>$medium), $file);
+            $s_thumb = $this->GetThumbnailsFromDimensions(array('width'=>$s_width, 'height'=>$small), $file);
+        }
+        else
+        {
+            //Square thumb required.
+            
+            $l_thumb = $this->GetThumbnailsFromDimensions(array('width'=>$large, 'height'=>$large), $file);
+            $m_thumb = $this->GetThumbnailsFromDimensions(array('width'=>$medium, 'height'=>$medium), $file);
+            $s_thumb = $this->GetThumbnailsFromDimensions(array('width'=>$small, 'height'=>$small), $file);
+        }
+
+        if(!empty($l_thumb) && !empty($m_thumb) && !empty($s_thumb)){
+            return array($l_thumb, $m_thumb, $s_thumb);
+        }else{
+            return false;
+        }
+        
+
+     }
+
+     protected function GetThumbnailsFromDimensions($size_array, $file){       
+            $w = $size_array['width'];
+            $h = $size_array['height'];
+
+            //Width, Height, Callback(optional)
+            $thumb = Image::make($file)->resize($w,$h)->stream('png','60');
+            
+            if($thumb){
+                return $thumb;
+            }else{
+                return false;
+            }
+     }
 }

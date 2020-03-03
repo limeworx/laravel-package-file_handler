@@ -19,6 +19,7 @@ use Limeworx\FileHandler\Http\Requests\Files\FileUploadRequest;
 use Limeworx\FileHandler\Traits\SharedFileFunctions;
 use Limeworx\FileHandler\Models\FileUploads;
 use App\Http\Controllers\MainController;
+use Limeworx\FileHandler\JsonResponseService;
 
 
 /**
@@ -110,9 +111,47 @@ class FilesController extends MainController
                 $sql = "UPDATE file_uploads SET is_current_file = NULL, date_file_replaced = NOW() WHERE id != ? AND is_current_file = 1 AND file_name = ?";
                 DB::select($sql, [$ins, $name]);
 
-                return $this->response->success(
-                    array("message"=>"File upload successful, data stored in database and file moved to S3 bucket.")
-                );
+                $thumbs = $this->GenerateThumbnails($file);
+                if($thumbs == false){
+                    return $this->response->success(
+                        array(
+                                "message"=>"File upload successful, data stored in database and file moved to S3 bucket.",
+                                "thumbnails"=>"Thumbnails failed to upload - added to queue for schedules upload.",
+                            )
+                    );
+                }
+                else
+                {
+                    $upload_tracker=array();
+                    $c=0;
+                    foreach($thumbs as $val)
+                    {
+                        //We need to upload the thumbnails to S3, too! :)
+                        $verb = "large";
+                        switch($c){
+                            case 1: $verb = "medium"; break;
+                            case 2: $verb = "small"; break;
+                        }
+                        $thumbPath = 'images/bupa-booking/'.$token.'/'.$fileType.'/'.$upload_time.'/thumbs/'.$name.'_'.$verb.'.png';
+                        //$upload = Storage::disk('s3')->put($filePath, fopen($val, 'r+'));
+                        $upload = Storage::disk('s3')->put($thumbPath, $val->__toString());
+                      
+                        
+                        if(!$upload){
+                            $upload_tracker[$c]="Failed to upload thumbnail $c: $thumbPath";
+                        }else{
+                            $upload_tracker[$c]="Upload $c successfully uploaded: $thumbPath";
+                        }
+                        $c++;
+                    }
+
+                    return $this->response->success(
+                        array(
+                                "message"=>"File upload successful, data stored in database and file moved to S3 bucket.",
+                                "thumbnails_upload_track"=>$upload_tracker,
+                            )
+                    );
+                }                
             }
             else
             {
@@ -187,13 +226,25 @@ class FilesController extends MainController
             $r=$this->GetFileExistsOnS3($name, $token, $ts, $ft);
             if($r[0]==true)
             {
+                //print_r($r);
                 //Get file key
-                $fp = $r[1];
+                $src = $r[1]['src'];
+                $lth = $r[1]['thumbs']['large'];
+                $mth = $r[1]['thumbs']['medium'];
+                $sth = $r[1]['thumbs']['small'];
+
+                //echo "SRC: $src, LTH: $lth, MTH: $mth, STH: $sth";
                 $exp = now()->addMinutes(20);
-                $url = Storage::disk('s3')->temporaryUrl($fp, $exp);
+                
+                $url = Storage::disk('s3')->temporaryUrl($src, $exp);
+                $lth_url = Storage::disk('s3')->temporaryUrl($lth, $exp);
+                $mth_url = Storage::disk('s3')->temporaryUrl($mth, $exp);
+                $sth_url = Storage::disk('s3')->temporaryUrl($sth, $exp);
+
+                $data=array('src'=>$url, 'thumbnails'=>array('large'=>$lth_url, 'medium'=>$mth_url, 'small'=>$sth_url));
                 
                 return $this->response->success(
-                    array("message"=>"File retrieved, temporarily URL expires at: ".date("d/m/Y H:i", $exp->getTimeStamp()), 'data'=>$url)
+                    array("message"=>"File retrieved, temporarily URL expires at: ".date("d/m/Y H:i", $exp->getTimeStamp()), 'data'=>$data)
                 );
             }
             else
@@ -245,7 +296,10 @@ class FilesController extends MainController
             if($r[0])
             {
                 //Delete from S3
-                $r= Storage::disk('s3')->delete($r[1]);
+                $r= Storage::disk('s3')->delete($r[1]['src']);
+                //Delete thumbs
+                Storage::disk('s3')->deleteDirectory('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs');
+
                 //We don't strictly need to know if the file has been removed or not.  We can assume that it has either been deleted, or that it was never there to begin with.
                 //Either way, we still need to proceed with removing the file from the database.
                 $r=$this->FlagFileAsDeleted($name);

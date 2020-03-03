@@ -10,7 +10,9 @@
         }
     ],
     "minimum-stability": "dev",
-    "require": {},
+    "require": {
+        "intervention/image":"^2.5.1"
+    },
     "autoload":{
         "psr-4": {
             "Limeworx\\FileHandler\\":"src/"
