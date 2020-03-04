@@ -227,7 +227,7 @@ class FilesController extends MainController
             if($r[0]==true)
             {
                 //print_r($r);
-                //Get file key
+                //Get file key 
                 $src = $r[1]['src'];
                 $lth = $r[1]['thumbs']['large'];
                 $mth = $r[1]['thumbs']['medium'];
