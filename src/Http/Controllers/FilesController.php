@@ -226,21 +226,35 @@ class FilesController extends MainController
             $r=$this->GetFileExistsOnS3($name, $token, $ts, $ft);
             if($r[0]==true)
             {
-                print_r($r);
+                //print_r($r);
                 //Get file key 
                 $src = $r[1]['src'];
                 $lth = $r[1]['thumbs']['large'];
                 $mth = $r[1]['thumbs']['medium'];
                 $sth = $r[1]['thumbs']['small'];
 
-                echo "SRC: $src, LTH: $lth, MTH: $mth, STH: $sth"; die();
+                //echo "SRC: $src, LTH: $lth, MTH: $mth, STH: $sth"; die();
                 $exp = now()->addMinutes(20);
 
                 
                 $url = Storage::disk('s3')->temporaryUrl($src, $exp);
-                $lth_url = Storage::disk('s3')->temporaryUrl($lth, $exp);
-                $mth_url = Storage::disk('s3')->temporaryUrl($mth, $exp);
-                $sth_url = Storage::disk('s3')->temporaryUrl($sth, $exp);
+                if(strlen($lth)>0){
+                    $lth_url = Storage::disk('s3')->temporaryUrl($lth, $exp);
+                }else{
+                    $lth_url = false;
+                }
+
+                if(strlen($mth)>0){
+                    $mth_url = Storage::disk('s3')->temporaryUrl($mth, $exp);
+                }else{
+                    $mth_url = false;
+                }
+
+                if(strlen($sth)>0){
+                    $sth_url = Storage::disk('s3')->temporaryUrl($sth, $exp);
+                }else{
+                    $sth_url = false;
+                }
 
                 $data=array('src'=>$url, 'thumbnails'=>array('large'=>$lth_url, 'medium'=>$mth_url, 'small'=>$sth_url));
                 

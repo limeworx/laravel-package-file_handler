@@ -112,23 +112,23 @@ trait SharedFileFunctions
             $return['src']='images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/'.$filename.'.'.$file_extension;
 
             //Do thumbs exist?
-            $l_thumb = Storage::disk('s3')->exists('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_large.'.$file_extension);
-            $m_thumb = Storage::disk('s3')->exists('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_medium.'.$file_extension);
-            $s_thumb = Storage::disk('s3')->exists('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_small.'.$file_extension);
+            $l_thumb = Storage::disk('s3')->exists('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_large.png');
+            $m_thumb = Storage::disk('s3')->exists('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_medium.png');
+            $s_thumb = Storage::disk('s3')->exists('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_small.png');
             if($l_thumb){
-                $return['thumbs']['large']='images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_large.'.$file_extension;
+                $return['thumbs']['large']='images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_large.png';
             }else{
                 $return['thumbs']['large']=false;
             }
 
             if($m_thumb){
-                $return['thumbs']['medium']='images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_medium.'.$file_extension;
+                $return['thumbs']['medium']='images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_medium.png';
             }else{
                 $return['thumbs']['medium']=false;
             }
 
             if($s_thumb){
-                $return['thumbs']['small']='images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_small.'.$file_extension;
+                $return['thumbs']['small']='images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_small.png';
             }else{
                 $return['thumbs']['small']=false;
             }
