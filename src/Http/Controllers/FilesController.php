@@ -233,8 +233,9 @@ class FilesController extends MainController
                 $mth = $r[1]['thumbs']['medium'];
                 $sth = $r[1]['thumbs']['small'];
 
-                //echo "SRC: $src, LTH: $lth, MTH: $mth, STH: $sth";
+                echo "SRC: $src, LTH: $lth, MTH: $mth, STH: $sth"; die();
                 $exp = now()->addMinutes(20);
+
                 
                 $url = Storage::disk('s3')->temporaryUrl($src, $exp);
                 $lth_url = Storage::disk('s3')->temporaryUrl($lth, $exp);
