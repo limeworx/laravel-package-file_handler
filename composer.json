@@ -21,7 +21,7 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Limeworx\\FileHandler\\ServiceProvider"
+                "Limeworx\\FileHandler\\FileHandlerServiceProvider"
             ]
         }
     }
