@@ -226,7 +226,7 @@ class FilesController extends MainController
             $r=$this->GetFileExistsOnS3($name, $token, $ts, $ft);
             if($r[0]==true)
             {
-                //print_r($r);
+                print_r($r);
                 //Get file key 
                 $src = $r[1]['src'];
                 $lth = $r[1]['thumbs']['large'];
