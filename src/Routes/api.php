@@ -1,6 +1,6 @@
 <?php
 
-route::group(['namespace'=>'Limeworx\FileHandler\Http\Controllers'], function(){
+Route::group(['namespace'=>'Limeworx\FileHandler\Http\Controllers'], function(){
 
     Route::middleware('auth:api')->group(function () {
         Route::post('file', 'FilesController@UploadFile');
