@@ -5,6 +5,8 @@ namespace Limeworx\FileHandler\Traits;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Limeworx\FileHandler\Models\FileUploads;
+use Limeworx\FileHandler\Models\CsvUploads;
+
 use Image;
 
 trait SharedFileFunctions
@@ -94,7 +96,7 @@ trait SharedFileFunctions
         $ft= ucfirst(strtolower($ft));
         $filename = $stored->file_name;
         $file_extension = $stored->file_extension;
-        $fp = "images/bupa-booking/$token/$ft/$ts/$filename.$file_extension";
+        $fp = 'images/'.strtolower(str_replace(' ','-', env('APP_NAME')))."/$token/$ft/$ts/$filename.$file_extension";
         //echo $fp;
 
         //Return object set up (mostly for figuring out what i need).
@@ -107,28 +109,28 @@ trait SharedFileFunctions
                             )
                         );
         //Does file exist?
-        $r=Storage::disk('s3')->exists('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/'.$filename.'.'.$file_extension);
+        $r=Storage::disk('s3')->exists('images/'.strtolower(str_replace(' ','-', env('APP_NAME'))).'/'.$token.'/'.$ft.'/'.$ts.'/'.$filename.'.'.$file_extension);
         if($r){
-            $return['src']='images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/'.$filename.'.'.$file_extension;
+            $return['src']='images/'.strtolower(str_replace(' ','-', env('APP_NAME'))).'/'.$token.'/'.$ft.'/'.$ts.'/'.$filename.'.'.$file_extension;
 
             //Do thumbs exist?
-            $l_thumb = Storage::disk('s3')->exists('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_large.png');
-            $m_thumb = Storage::disk('s3')->exists('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_medium.png');
-            $s_thumb = Storage::disk('s3')->exists('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_small.png');
+            $l_thumb = Storage::disk('s3')->exists('images/'.strtolower(str_replace(' ','-', env('APP_NAME'))).'/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_large.png');
+            $m_thumb = Storage::disk('s3')->exists('images/'.strtolower(str_replace(' ','-', env('APP_NAME'))).'/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_medium.png');
+            $s_thumb = Storage::disk('s3')->exists('images/'.strtolower(str_replace(' ','-', env('APP_NAME'))).'/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_small.png');
             if($l_thumb){
-                $return['thumbs']['large']='images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_large.png';
+                $return['thumbs']['large']='images/'.strtolower(str_replace(' ','-', env('APP_NAME'))).'/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_large.png';
             }else{
                 $return['thumbs']['large']=false;
             }
 
             if($m_thumb){
-                $return['thumbs']['medium']='images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_medium.png';
+                $return['thumbs']['medium']='images/'.strtolower(str_replace(' ','-', env('APP_NAME'))).'/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_medium.png';
             }else{
                 $return['thumbs']['medium']=false;
             }
 
             if($s_thumb){
-                $return['thumbs']['small']='images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_small.png';
+                $return['thumbs']['small']='images/'.strtolower(str_replace(' ','-', env('APP_NAME'))).'/'.$token.'/'.$ft.'/'.$ts.'/thumbs/'.$filename.'_small.png';
             }else{
                 $return['thumbs']['small']=false;
             }
@@ -228,5 +230,64 @@ trait SharedFileFunctions
             }else{
                 return false;
             }
+     }
+
+     protected function CreateAndUploadCSV($header,$data,$name,$delimeter)
+     {
+        $user = auth()->user();
+        if($user==null){
+            return $this->response->fail(
+                array("message"=>'Unable to proceed - No login found.')
+            );
+        }
+        // Open Memory for saving CSV without writing it to the server.
+        // Should probably establish a proper memory limit!
+        $memcsv = fopen('php://temp/maxmemory:'.env('PHP_MEM_CSV_LIMIT'),'w');
+        if($memcsv == FALSE){
+            return array(false, 'Unable to access memory to write CSV.  Please try again.  If the problem persists, please contact the developers.');
+        }
+
+        $header  = json_decode($header,1);
+        $records = json_decode($data,1);
+
+        //Add headers
+        //fwrite($memcsv,'sep=,'.PHP_EOL);
+        fputcsv($memcsv, $header, "$delimeter");
+        //Add all the data.
+        foreach($records as $r){
+            fputcsv($memcsv, $r, "$delimeter");
+        }
+
+        rewind($memcsv);
+        $csv = stream_get_contents($memcsv);
+        $fp = 'csv/'.strtolower(str_replace(' ','-', env('APP_NAME')))."/$name";
+
+        $upload = Storage::disk('s3')->put($fp, $csv);
+        if($upload)
+        {
+
+            //Now get the temp URL for this file. :D
+            $ins_id = CsvUploads::insertGetId([
+                'csv_name'=>$name,
+                'generated_by'=>$user->id,
+                'generated_by_ip'=>$_SERVER['REMOTE_ADDR'],
+                'generated_by_browser'=>$_SERVER['HTTP_USER_AGENT'],
+                'created_at'=>now()
+            ]);
+            if($ins_id){
+                $exp = now()->addMinutes(1);
+                $url = Storage::disk('s3')->temporaryUrl($fp, $exp);
+                return array(true, $url);
+            }else{
+                return array(false, "CSV upload success, but unable to write to the database: ".$ins_id);
+            }
+
+            
+        }
+        else
+        {
+            return array(false, "CSV upload failed.  Please try again.");
+        }
+         
      }
 }

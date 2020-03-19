@@ -16,6 +16,7 @@ use Limeworx\FileHandler\Http\Requests;
 
 use Limeworx\FileHandler\Http\Requests\Files\FileGetRequest;
 use Limeworx\FileHandler\Http\Requests\Files\FileUploadRequest;
+use Limeworx\FileHandler\Http\Requests\Files\CsvDownloadRequest;
 use Limeworx\FileHandler\Traits\SharedFileFunctions;
 use Limeworx\FileHandler\Models\FileUploads;
 use App\Http\Controllers\MainController;
@@ -103,7 +104,7 @@ class FilesController extends MainController
         {
             //Upload the file to S3.
             
-            $filePath = 'images/bupa-booking/'.$token.'/'.$fileType.'/'.$upload_time.'/'.$name.'.'.$ext;
+            $filePath = 'images/'.strtolower(str_replace(' ','-', env('APP_NAME'))).'/'.$token.'/'.$fileType.'/'.$upload_time.'/'.$name.'.'.$ext;
             $upload = Storage::disk('s3')->put($filePath, fopen($file, 'r+'));
 
             if($upload)
@@ -132,7 +133,7 @@ class FilesController extends MainController
                             case 1: $verb = "medium"; break;
                             case 2: $verb = "small"; break;
                         }
-                        $thumbPath = 'images/bupa-booking/'.$token.'/'.$fileType.'/'.$upload_time.'/thumbs/'.$name.'_'.$verb.'.png';
+                        $thumbPath = 'images/'.strtolower(str_replace(' ','-', env('APP_NAME'))).'/'.$token.'/'.$fileType.'/'.$upload_time.'/thumbs/'.$name.'_'.$verb.'.png';
                         //$upload = Storage::disk('s3')->put($filePath, fopen($val, 'r+'));
                         $upload = Storage::disk('s3')->put($thumbPath, $val->__toString());
                       
@@ -313,14 +314,13 @@ class FilesController extends MainController
                 //Delete from S3
                 $r= Storage::disk('s3')->delete($r[1]['src']);
                 //Delete thumbs
-                Storage::disk('s3')->deleteDirectory('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts.'/thumbs');
+                Storage::disk('s3')->deleteDirectory('images/'.strtolower(str_replace(' ','-', env('APP_NAME'))).'/'.$token.'/'.$ft.'/'.$ts.'/thumbs');
 
                 //We don't strictly need to know if the file has been removed or not.  We can assume that it has either been deleted, or that it was never there to begin with.
                 //Either way, we still need to proceed with removing the file from the database.
                 $r=$this->FlagFileAsDeleted($name);
                 if($r==true)
                 {   
-                    //$r=Storage::disk('s3')->delete('images/bupa-booking/'.$token.'/'.$ft.'/'.$ts);
                     return $this->response->success(
                         array("message"=>"File Deleted Successfully")
                     );
@@ -351,6 +351,53 @@ class FilesController extends MainController
             }
         }
         
+    }
+
+    /**
+     * Create and download CSV
+     * Creates a CSV securely in the S3 bucket and provides the caller with a secure link to use when triggering the download.
+     * ### Rules:
+     * + Valid access token must be present.
+     * + header_data must be present and will become the lead fields for the CSV.  Example: 'Name', 'Age', 'Sex', 'Weight'.
+     * + body_data must be present and will become the content fields for the CSV.  Example: 'Vince','30','M','100kg'
+     * + File is generated and sent to a S3 bucket that clears on a regular basis.   Files are stored only for a short amount of time before being deleted.
+     * @bodyParam header_data string required Single JSON array to become the headings for the CSV.
+     * @bodyParam body_data string required Multiple JSON arrays to become the body content for the CSV.
+     * @bodyParam file_name string String to be used when naming the file, if required.  If not specified, APP NAME - DATETIME will be used. Please do not provide a file extension.
+     * @bodyParam delimeter string Single character to be used as the separator for each field.  Note: Must conform to standard CSV rules.
+     * @authenticated
+     */
+    function CreateAndDownloadCSV(CsvDownloadRequest $request)
+    {
+        $headers = $request->input('header_data');
+        $body = $request->input('body_data');
+        $delim = ',';
+        $file_name = env('APP_NAME').'_'.date('Y-m-d_H-i-s').'.csv';
+
+
+        if($request->input('file_name')){
+            //Trim .csv in case idiots
+            $file_name = str_replace('.csv','',$request->input('file_name')).'.csv';
+        }
+        if($request->input('delimeter')){
+            //Set new delimeter if it has been sent.
+            $delim = $request->input('delimeter');
+        }
+        //Upload CSV to S3 and return secure link.
+        $upload_csv = $this->CreateAndUploadCSV($headers, $body, $file_name, $delim);
+
+        if($upload_csv[0])
+        {
+            return $this->response->success(
+                array("message"=>"CSV generated successfully, URL is live for the next minute.", 'data'=>$upload_csv[1])
+            );
+        }
+        else
+        {
+            return $this->response->fail(
+                array("message"=>"Unable to generate CSV at this time.", 'error'=>$upload_csv[1])
+            );
+        }
     }
 
 }
