@@ -3,6 +3,7 @@
 namespace Limeworx\FileHandler;
 
 use Illuminate\support\ServiceProvider;
+use Illuminate\Database\Eloquent\Factory as EloquentFactory;
 
 class FileHandlerServiceProvider extends ServiceProvider{
 
@@ -16,6 +17,17 @@ class FileHandlerServiceProvider extends ServiceProvider{
     }
 
     public function register(){
+        $this->registerEloquentFactoriesFrom(__DIR__.'/database/factories');
+    }
 
+    /**
+     * Register factories.
+     *
+     * @param  string  $path
+     * @return void
+     */
+    protected function registerEloquentFactoriesFrom($path)
+    {
+        $this->app->make(EloquentFactory::class)->load($path);
     }
 }
