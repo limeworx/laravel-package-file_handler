@@ -164,7 +164,8 @@ trait SharedFileFunctions
      * 
      */
 
-     protected function GenerateThumbnails($file){
+     protected function GenerateThumbnails($file)
+     {
 
         //Width
         $w = Image::make($file)->width();
@@ -218,7 +219,8 @@ trait SharedFileFunctions
 
      }
 
-     protected function GetThumbnailsFromDimensions($size_array, $file){       
+     protected function GetThumbnailsFromDimensions($size_array, $file)
+     {       
             $w = $size_array['width'];
             $h = $size_array['height'];
 
@@ -267,11 +269,13 @@ trait SharedFileFunctions
         {
 
             //Now get the temp URL for this file. :D
+            $remote_addr = isset($_SERVER['REMOTE_ADDR'])? $_SERVER['REMOTE_ADDR']:'127.0.0.1';
+            $user_agent = isset($_SERVER['HTTP_USER_AGENT'])? $_SERVER['HTTP_USER_AGENT']:'php-unit-test';
             $ins_id = CsvUploads::insertGetId([
                 'csv_name'=>$name,
                 'generated_by'=>$user->id,
-                'generated_by_ip'=>$_SERVER['REMOTE_ADDR'],
-                'generated_by_browser'=>$_SERVER['HTTP_USER_AGENT'],
+                'generated_by_ip'=>$remote_addr,
+                'generated_by_browser'=>$user_agent,
                 'created_at'=>now()
             ]);
             if($ins_id){
