@@ -145,12 +145,51 @@ class FilesController extends MainController
                         $c++;
                     }
 
-                    return $this->response->success(
-                        array(
-                                "message"=>"File upload successful, data stored in database and file moved to S3 bucket.",
-                                "thumbnails_upload_track"=>$upload_tracker,
+                    $ts = $upload_time;
+                    $r=$this->GetFileExistsOnS3($name, $token, $ts, $fileType);
+
+                    
+
+                    
+                    if($r[0]==true)
+                    {
+                         //print_r($r);
+                        //Get file key
+                        $src = $r[1]['src'];
+                        $lth = $r[1]['thumbs']['large'];
+                        $mth = $r[1]['thumbs']['medium'];
+                        $sth = $r[1]['thumbs']['small'];
+
+                        //echo "SRC: $src, LTH: $lth, MTH: $mth, STH: $sth";
+                        $exp = now()->addMinutes(20);
+                       
+                        $url = Storage::disk('s3')->temporaryUrl($src, $exp);
+                        /*$lth_url = Storage::disk('s3')->temporaryUrl($lth, $exp);
+                        $mth_url = Storage::disk('s3')->temporaryUrl($mth, $exp);
+                        $sth_url = Storage::disk('s3')->temporaryUrl($sth, $exp);*/
+                        
+
+                        $r=array(
+                            "message"=>"File upload successful, data stored in database and file moved to S3 bucket.",
+                            "thumbnails_upload_track"=>$upload_tracker,
+                            "images"=>array(
+                                "src"=>$url,
+                                "thumbs"=>"To come later, call 'get' for now or use this image."
+                                /*"thumbs"=>array(
+                                    'large'=>$lth_url,
+                                    'medium'=>$mth_url,
+                                    'small'=>$sth_url
+                                )*/
                             )
-                    );
+                        );
+                        return $this->response->success($r);
+                    }
+                    else
+                    {
+                        return $this->response->fail(
+                            array("message"=>'File upload success, but unable to fetch return urls.')
+                        );
+                    }
                 }                
             }
             else

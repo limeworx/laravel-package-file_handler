@@ -141,6 +141,9 @@ trait SharedFileFunctions
     }
 
     protected function GetFileTimeStamp($var){
+
+       
+
         $timestamp = FileUploads::where([
             ['file_name','=',$var],
             ['is_current_file','=',1]
@@ -148,7 +151,8 @@ trait SharedFileFunctions
 
         if($timestamp != null || strlen($timestamp)>0 || empty(!$timestamp))
         {
-            return array(true, $timestamp->upload_timestamp);
+            $ts = $timestamp->upload_timestamp;
+            return array(true, $ts);
         }
         
         return array(false, 'Unable to proceed - couldn\'t locate file in the database.');
