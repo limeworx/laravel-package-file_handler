@@ -181,6 +181,10 @@ class FilesController extends MainController
                                     'medium'=>$mth_url,
                                     'small'=>$sth_url
                                 )*/
+                    
+                                ),
+                            "data"=>array(
+                                "file_id"=>$ins
                             )
                         );
                         return $this->response->success($r);
