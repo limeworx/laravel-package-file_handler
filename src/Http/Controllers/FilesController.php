@@ -62,6 +62,7 @@ class FilesController extends MainController
      * + A file must be attached to the call to be processed by it.
      * @bodyParam file_type string required You should specify what kind of file this will be - EG: Draft, Final, Artwork, etc.
      * @bodyParam access_token string required The token sent to you in the email.
+     * @bodyParam s3_folder_name string required The folder to save the file in (will be made if not exist).
      * @authenticated
      * @responseFile responses/uploadFile200.json
      * @responseFile 401 responses/requiresAuth401.json
@@ -76,6 +77,15 @@ class FilesController extends MainController
                 array("message"=>'Unable to proceed - No login found.')
             );
         }
+        if(!$request->input('s3_folder_name')){
+            return $this->response->fail(
+                array("message"=>'Storage location missing.')
+            );
+        }
+
+        $folder = $request->input('s3_folder_name');
+
+
         $name = $this->sanitize_file_name($request->input('file_name'));
         $file = $request->file('file');
         $ext = $request->file('file')->getClientOriginalExtension();
@@ -96,6 +106,7 @@ class FilesController extends MainController
             'is_current_file'=>1,
             'file_extension'=>$ext,
             'file_type'=>$fileType,
+            'project_s3_folder_name'=>strtolower(str_replace(' ','-', $folder)),
             'upload_timestamp'=>$upload_time,
         ]);
         
@@ -104,7 +115,7 @@ class FilesController extends MainController
         {
             //Upload the file to S3.
             
-            $filePath = 'images/'.strtolower(str_replace(' ','-', env('APP_NAME'))).'/'.$token.'/'.$fileType.'/'.$upload_time.'/'.$name.'.'.$ext;
+            $filePath = 'images/'.strtolower(str_replace(' ','-', $folder)).'/'.$token.'/'.$fileType.'/'.$upload_time.'/'.$name.'.'.$ext;
             $upload = Storage::disk('s3')->put($filePath, fopen($file, 'r+'));
 
             if($upload)
@@ -133,7 +144,7 @@ class FilesController extends MainController
                             case 1: $verb = "medium"; break;
                             case 2: $verb = "small"; break;
                         }
-                        $thumbPath = 'images/'.strtolower(str_replace(' ','-', env('APP_NAME'))).'/'.$token.'/'.$fileType.'/'.$upload_time.'/thumbs/'.$name.'_'.$verb.'.png';
+                        $thumbPath = 'images/'.strtolower(str_replace(' ','-', $folder)).'/'.$token.'/'.$fileType.'/'.$upload_time.'/thumbs/'.$name.'_'.$verb.'.png';
                         //$upload = Storage::disk('s3')->put($filePath, fopen($val, 'r+'));
                         $upload = Storage::disk('s3')->put($thumbPath, $val->__toString());
                       
@@ -147,7 +158,7 @@ class FilesController extends MainController
                     }
 
                     $ts = $upload_time;
-                    $r=$this->GetFileExistsOnS3($name, $token, $ts, $fileType);
+                    $r=$this->GetFileExistsOnS3($name, $token, $ts, $fileType, $folder);
 
                     
 
@@ -235,6 +246,7 @@ class FilesController extends MainController
      * @bodyParam file_name string required This will represent how the file will be stored on the S3 bucket.
      * @bodyParam file_type string required You should specify what kind of file this will be - EG: Draft, Final, Artwork, etc.
      * @bodyParam access_token string required The token sent to you in the email.
+     * @bodyParam s3_folder_name string required The folder to save the file in (will be made if not exist).
      * @responseFile responses/fetchFile200.json
      * @responseFile 401 responses/requiresAuth401.json
      * @authenticated
@@ -245,7 +257,12 @@ class FilesController extends MainController
         $name = $this->sanitize_file_name($request->input('file_name'));
         $token = $this->GetFileUniqueToken($name);
         $ft = $request->input('file_type');
-
+        if(!$request->input('s3_folder_name')){
+            return $this->response->fail(
+                array("message"=>'Storage location missing.')
+            );
+        }
+        $folder = $request->input('s3_folder_name');
         //Does file exist in database?
         
         if($this->GetIsFileInDB($name)===false)
@@ -267,7 +284,7 @@ class FilesController extends MainController
                 );
             }
 
-            $r=$this->GetFileExistsOnS3($name, $token, $ts, $ft);
+            $r=$this->GetFileExistsOnS3($name, $token, $ts, $ft, $folder);
             if($r[0]==true)
             {
                 //print_r($r);
@@ -309,7 +326,7 @@ class FilesController extends MainController
             else
             {
                 return $this->response->fail(
-                    array("message"=>"File 'images/bupa_booking/$token/$ft/$ts/$name' does not exist in the S3 bucket.  Please check the file name and try again.")
+                    array("message"=>"File 'images/".strtolower(str_replace(' ','-', $folder))."/$token/$ft/$ts/$name' does not exist in the S3 bucket.  Please check the file name and try again.")
                 );
             }
         }
@@ -351,13 +368,13 @@ class FilesController extends MainController
                     array("message"=>"Unable to find file timestamp in database - please check that the file exists.")
                 );
             }
-            $r = $this->GetFileExistsOnS3($name, $token, $ts, $ft); 
+            $r = $this->GetFileExistsOnS3($name, $token, $ts, $ft, $folder); 
             if($r[0])
             {
                 //Delete from S3
                 $r= Storage::disk('s3')->delete($r[1]['src']);
                 //Delete thumbs
-                Storage::disk('s3')->deleteDirectory('images/'.strtolower(str_replace(' ','-', env('APP_NAME'))).'/'.$token.'/'.$ft.'/'.$ts.'/thumbs');
+                Storage::disk('s3')->deleteDirectory('images/'.strtolower(str_replace(' ','-', $folder)).'/'.$token.'/'.$ft.'/'.$ts.'/thumbs');
 
                 //We don't strictly need to know if the file has been removed or not.  We can assume that it has either been deleted, or that it was never there to begin with.
                 //Either way, we still need to proceed with removing the file from the database.

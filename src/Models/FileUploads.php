@@ -13,6 +13,7 @@ class FileUploads extends Model
      */
     protected $fillable = [
         'file_name',
+        'project_s3_folder_name',
         's3_unique_token',
         'file_extension',
         'file_type',
