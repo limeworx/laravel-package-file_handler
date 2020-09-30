@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factory as EloquentFactory;
 class FileHandlerServiceProvider extends ServiceProvider{
 
     public function boot(){
-        $this->loadRoutesFrom(__DIR__.'/routes/api.php'); 
+        $this->loadRoutesFrom(__DIR__.'/Routes/api.php'); 
         $this->loadMigrationsFrom(__DIR__.'/database/migrations'); 
 
         $this->publishes([
