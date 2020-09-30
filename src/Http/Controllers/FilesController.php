@@ -79,7 +79,7 @@ class FilesController extends MainController
         }
         if(!$request->input('s3_folder_name')){
             return $this->response->fail(
-                array("message"=>'Storage location missing.')
+                array("message"=>'Storage location missing.', 'errors'=>array('input'=>$request->input))
             );
         }
 
@@ -259,7 +259,7 @@ class FilesController extends MainController
         $ft = $request->input('file_type');
         if(!$request->input('s3_folder_name')){
             return $this->response->fail(
-                array("message"=>'Storage location missing.')
+                array("message"=>'Storage location missing.', 'errors'=>array('input'=>$request->input()))
             );
         }
         $folder = $request->input('s3_folder_name');

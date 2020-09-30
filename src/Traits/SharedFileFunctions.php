@@ -143,9 +143,7 @@ trait SharedFileFunctions
     }
 
     protected function GetFileTimeStamp($var){
-
-       
-
+        
         $timestamp = FileUploads::where([
             ['file_name','=',$var],
             ['is_current_file','=',1]
