@@ -360,6 +360,12 @@ class FilesController extends MainController
         }
         else 
         {
+            if(!$request->input('s3_folder_name')){
+                return $this->response->fail(
+                    array("message"=>'Storage location missing.', 'errors'=>array('input'=>$request->input))
+                );
+            }
+            $folder = $request->input('s3_folder_name');
             $ts = ($request->input('time_stamp') ? $request->input('time_stamp') : $this->GetFileTimeStamp($name));
             if($ts[0]==true){
                 $ts=$ts[1];
