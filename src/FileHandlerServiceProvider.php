@@ -3,7 +3,7 @@
 namespace Limeworx\FileHandler;
 
 use Illuminate\support\ServiceProvider;
-use Illuminate\Database\Eloquent\Factory as EloquentFactory;
+use Illuminate\Database\Eloquent\Factories\Factory as EloquentFactory;
 
 class FileHandlerServiceProvider extends ServiceProvider{
 
