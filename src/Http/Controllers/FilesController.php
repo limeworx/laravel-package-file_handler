@@ -19,7 +19,7 @@ use Limeworx\FileHandler\Http\Requests\Files\FileUploadRequest;
 use Limeworx\FileHandler\Http\Requests\Files\CsvDownloadRequest;
 use Limeworx\FileHandler\Traits\SharedFileFunctions;
 use Limeworx\FileHandler\Models\FileUploads;
-use App\Http\Controllers\MainController;
+use App\Http\Controllers\Controller;
 use Limeworx\FileHandler\JsonResponseService;
 
 
@@ -28,7 +28,7 @@ use Limeworx\FileHandler\JsonResponseService;
  * @group File Handling From Package
  * @package App\Http\Controllers
  */
-class FilesController extends MainController
+class FilesController extends Controller
 {
     //Instantiate the shared file traits.
     use SharedFileFunctions;
