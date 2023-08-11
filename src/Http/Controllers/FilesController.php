@@ -40,13 +40,13 @@ class FilesController extends Controller
      */
     function StreamFileToServer(Request $request)
     {
-        
+
         $file = $request->file("file");
 
         $name = "My Cool Streamed File";
         $ext = $request->file('file')->getClientOriginalExtension();
-        $filePath = getcwd().'/images/tests/';
-        $r = Storage::disk('s3')->putFileAs('test', $file, $name.'.'.$ext);
+        $filePath = getcwd() . '/images/tests/';
+        $r = Storage::disk('s3')->putFileAs('test', $file, $name . '.' . $ext);
         print_r($r);
     }
 
@@ -72,14 +72,14 @@ class FilesController extends Controller
     function UploadFile(FileUploadRequest $request)
     {
         $user = auth()->user();
-        if($user==null){
+        if ($user == null) {
             return $this->response->fail(
-                array("message"=>'Unable to proceed - No login found.')
+                array("message" => 'Unable to proceed - No login found.')
             );
         }
-        if(!$request->input('s3_folder_name')){
+        if (!$request->input('s3_folder_name')) {
             return $this->response->fail(
-                array("message"=>'Storage location missing.', 'errors'=>array('input'=>$request->input))
+                array("message" => 'Storage location missing.', 'errors' => array('input' => $request->input))
             );
         }
 
@@ -91,81 +91,79 @@ class FilesController extends Controller
         $ext = $request->file('file')->getClientOriginalExtension();
         $fileType  = ucfirst(strtolower($request->input('file_type')));
         $upload_time = time();
-        
-        if($name==''){
-            $name=$this->sanitize_file_name($file->getClientOriginalName());
+
+        if ($name == '') {
+            $name = $this->sanitize_file_name($file->getClientOriginalName());
         }
         $token = $this->GetFileUniqueToken($name);
 
         $ins = DB::table('file_uploads')->insertGetId([
-            'file_name'=>$name,
-            'S3_unique_token'=>$token,
-            's3_bucket_name'=>'limeworx-application-test-bucket',//env('AWS_BUCKET'),
-            'uploader_id'=>$user->id,
-            'created_at'=>now(),
-            'is_current_file'=>1,
-            'file_extension'=>$ext,
-            'file_type'=>$fileType,
-            'project_s3_folder_name'=>strtolower(str_replace(' ','-', $folder)),
-            'upload_timestamp'=>$upload_time,
+            'file_name' => $name,
+            'S3_unique_token' => $token,
+            's3_bucket_name' => 'limeworx-application-test-bucket', //env('AWS_BUCKET'),
+            'uploader_id' => $user->id,
+            'created_at' => now(),
+            'is_current_file' => 1,
+            'file_extension' => $ext,
+            'file_type' => $fileType,
+            'project_s3_folder_name' => strtolower(str_replace(' ', '-', $folder)),
+            'upload_timestamp' => $upload_time,
         ]);
-        
+
         //If the insert has been successful, we need to move the file to S3!
-        if(strlen($ins)>0 && $ins!=0)
-        {
+        if (strlen($ins) > 0 && $ins != 0) {
             //Upload the file to S3.
-            
-            $filePath = 'images/'.strtolower(str_replace(' ','-', $folder)).'/'.$token.'/'.$fileType.'/'.$upload_time.'/'.$name.'.'.$ext;
+
+            $filePath = 'images/' . strtolower(str_replace(' ', '-', $folder)) . '/' . $token . '/' . $fileType . '/' . $upload_time . '/' . $name . '.' . $ext;
             $upload = Storage::disk('s3')->put($filePath, fopen($file, 'r+'));
 
-            if($upload)
-            {
+            if ($upload) {
                 $sql = "UPDATE file_uploads SET is_current_file = NULL, date_file_replaced = NOW() WHERE id != ? AND is_current_file = 1 AND file_name = ?";
                 DB::select($sql, [$ins, $name]);
 
                 $thumbs = $this->GenerateThumbnails($file);
-                if($thumbs == false){
+                if ($thumbs == false) {
                     return $this->response->success(
                         array(
-                                "message"=>"File upload successful, data stored in database and file moved to S3 bucket.",
-                                "thumbnails"=>"Thumbnails failed to upload - added to queue for schedules upload.",
-                            )
+                            "message" => "File upload successful, data stored in database and file moved to S3 bucket.",
+                            "thumbnails" => "Thumbnails failed to upload - added to queue for schedules upload.",
+                        )
                     );
-                }
-                else
-                {
-                    $upload_tracker=array();
-                    $c=0;
-                    foreach($thumbs as $val)
-                    {
+                } else {
+                    $upload_tracker = array();
+                    $c = 0;
+                    foreach ($thumbs as $val) {
                         //We need to upload the thumbnails to S3, too! :)
                         $verb = "large";
-                        switch($c){
-                            case 1: $verb = "medium"; break;
-                            case 2: $verb = "small"; break;
+                        switch ($c) {
+                            case 1:
+                                $verb = "medium";
+                                break;
+                            case 2:
+                                $verb = "small";
+                                break;
                         }
-                        $thumbPath = 'images/'.strtolower(str_replace(' ','-', $folder)).'/'.$token.'/'.$fileType.'/'.$upload_time.'/thumbs/'.$name.'_'.$verb.'.png';
+                        $thumbPath = 'images/' . strtolower(str_replace(' ', '-', $folder)) . '/' . $token . '/' . $fileType . '/' . $upload_time . '/thumbs/' . $name . '_' . $verb . '.png';
                         //$upload = Storage::disk('s3')->put($filePath, fopen($val, 'r+'));
                         $upload = Storage::disk('s3')->put($thumbPath, $val->__toString());
-                      
-                        
-                        if(!$upload){
-                            $upload_tracker[$c]="Failed to upload thumbnail $c: $thumbPath";
-                        }else{
-                            $upload_tracker[$c]="Upload $c successfully uploaded: $thumbPath";
+
+
+                        if (!$upload) {
+                            $upload_tracker[$c] = "Failed to upload thumbnail $c: $thumbPath";
+                        } else {
+                            $upload_tracker[$c] = "Upload $c successfully uploaded: $thumbPath";
                         }
                         $c++;
                     }
 
                     $ts = $upload_time;
-                    $r=$this->GetFileExistsOnS3($name, $token, $ts, $fileType, $folder);
+                    $r = $this->GetFileExistsOnS3($name, $token, $ts, $fileType, $folder);
 
-                    
 
-                    
-                    if($r[0]==true)
-                    {
-                         //print_r($r);
+
+
+                    if ($r[0] == true) {
+                        //print_r($r);
                         //Get file key
                         $src = $r[1]['src'];
                         $lth = $r[1]['thumbs']['large'];
@@ -174,65 +172,151 @@ class FilesController extends Controller
 
                         //echo "SRC: $src, LTH: $lth, MTH: $mth, STH: $sth";
                         $exp = now()->addMinutes(20);
-                       
+
                         $url = Storage::disk('s3')->temporaryUrl($src, $exp);
                         /*$lth_url = Storage::disk('s3')->temporaryUrl($lth, $exp);
                         $mth_url = Storage::disk('s3')->temporaryUrl($mth, $exp);
                         $sth_url = Storage::disk('s3')->temporaryUrl($sth, $exp);*/
-                        
 
-                        $r=array(
-                            "message"=>"File upload successful, data stored in database and file moved to S3 bucket.",
-                            "thumbnails_upload_track"=>$upload_tracker,
-                            "images"=>array(
-                                "src"=>$url,
-                                "thumbs"=>"To come later, call 'get' for now or use this image."
+
+                        $r = array(
+                            "message" => "File upload successful, data stored in database and file moved to S3 bucket.",
+                            "thumbnails_upload_track" => $upload_tracker,
+                            "images" => array(
+                                "src" => $url,
+                                "thumbs" => "To come later, call 'get' for now or use this image."
                                 /*"thumbs"=>array(
                                     'large'=>$lth_url,
                                     'medium'=>$mth_url,
                                     'small'=>$sth_url
                                 )*/
-                    
-                                ),
-                            "data"=>array(
-                                "file_id"=>$ins
+
+                            ),
+                            "data" => array(
+                                "file_id" => $ins
                             )
                         );
                         return $this->response->success($r);
-                    }
-                    else
-                    {
+                    } else {
                         return $this->response->fail(
-                            array("message"=>'File upload success, but unable to fetch return urls.')
+                            array("message" => 'File upload success, but unable to fetch return urls.')
                         );
                     }
-                }                
-            }
-            else
-            {
+                }
+            } else {
                 //Undo previous sql query
-                $del = DB::table('file_uploads')->where('id','=',$ins)->delete();
-                if($del)
-                {
+                $del = DB::table('file_uploads')->where('id', '=', $ins)->delete();
+                if ($del) {
                     return $this->response->fail(
-                        array("message"=>'File upload has failed.  Successfully removed data from the files table.')
+                        array("message" => 'File upload has failed.  Successfully removed data from the files table.')
                     );
-                }
-                else
-                {
+                } else {
                     return $this->response->fail(
-                        array("message"=>'File upload has failed.  Unable to remove data from the files table in the database, orphaned data requires manual deletion.', 'insert_id'=>$ins)
+                        array("message" => 'File upload has failed.  Unable to remove data from the files table in the database, orphaned data requires manual deletion.', 'insert_id' => $ins)
                     );
                 }
             }
-            
-        }
-        else
-        {
+        } else {
             return $this->response->fail(
-                array("message"=>'An issue arose when inserting the file details into the database.  Please try again')
+                array("message" => 'An issue arose when inserting the file details into the database.  Please try again')
             );
-        } 
+        }
+    }
+
+
+    function UploadFilePdf(FileUploadRequest $request)
+    {
+        error_log('UploadFilePdf');
+        $user = auth()->user();
+        if ($user == null) {
+            return $this->response->fail(
+                array("message" => 'Unable to proceed - No login found.')
+            );
+        }
+        if (!$request->input('s3_folder_name')) {
+            return $this->response->fail(
+                array("message" => 'Storage location missing.', 'errors' => array('input' => $request->input))
+            );
+        }
+
+        $folder = $request->input('s3_folder_name');
+
+
+        $name = $this->sanitize_file_name($request->input('file_name'));
+        $file = $request->file('file');
+        $ext = $request->file('file')->getClientOriginalExtension();
+        $fileType  = ucfirst(strtolower($request->input('file_type')));
+        $upload_time = time();
+
+        if ($name == '') {
+            $name = $this->sanitize_file_name($file->getClientOriginalName());
+        }
+        $token = $this->GetFileUniqueToken($name);
+
+        $ins = DB::table('file_uploads')->insertGetId([
+            'file_name' => $name,
+            'S3_unique_token' => $token,
+            's3_bucket_name' => 'limeworx-application-test-bucket', //env('AWS_BUCKET'),
+            'uploader_id' => $user->id,
+            'created_at' => now(),
+            'is_current_file' => 1,
+            'file_extension' => $ext,
+            'file_type' => $fileType,
+            'project_s3_folder_name' => strtolower(str_replace(' ', '-', $folder)),
+            'upload_timestamp' => $upload_time,
+        ]);
+
+        //If the insert has been successful, we need to move the file to S3!
+        if (strlen($ins) > 0 && $ins != 0) {
+            //Upload the file to S3.
+
+            $filePath = 'images/' . strtolower(str_replace(' ', '-', $folder)) . '/' . $token . '/' . $fileType . '/' . $upload_time . '/' . $name . '.' . $ext;
+            $upload = Storage::disk('s3')->put($filePath, fopen($file, 'r+'));
+
+            if ($upload) {
+                $sql = "UPDATE file_uploads SET is_current_file = NULL, date_file_replaced = NOW() WHERE id != ? AND is_current_file = 1 AND file_name = ?";
+                DB::select($sql, [$ins, $name]);
+                $ts = $upload_time;
+                $r = $this->GetFileExistsOnS3($name, $token, $ts, $fileType, $folder);
+                if ($r[0] == true) {
+                    $src = $r[1]['src'];
+                    $exp = now()->addMinutes(20);
+                    $url = Storage::disk('s3')->temporaryUrl($src, $exp);
+                    $resp = array(
+                        "message" => "File upload successful, data stored in database and file moved to S3 bucket.",
+                        "images" => array(
+                            "src" => $url,
+                        ),
+                        "data" => array(
+                            "file_id" => $ins,
+                            "file_name" => $name
+                        )
+                    );
+                    return $resp;
+                    //return $this->response->success($resp);
+                } else {
+                    return $this->response->fail(
+                        array("message" => 'File upload success, but unable to fetch return urls.')
+                    );
+                }
+            } else {
+                //Undo previous sql query
+                $del = DB::table('file_uploads')->where('id', '=', $ins)->delete();
+                if ($del) {
+                    return $this->response->fail(
+                        array("message" => 'File upload has failed.  Successfully removed data from the files table.')
+                    );
+                } else {
+                    return $this->response->fail(
+                        array("message" => 'File upload has failed.  Unable to remove data from the files table in the database, orphaned data requires manual deletion.', 'insert_id' => $ins)
+                    );
+                }
+            }
+        } else {
+            return $this->response->fail(
+                array("message" => 'An issue arose when inserting the file details into the database.  Please try again')
+            );
+        }
     }
 
     /**
@@ -257,36 +341,31 @@ class FilesController extends Controller
         $name = $this->sanitize_file_name($request->input('file_name'));
         $token = $this->GetFileUniqueToken($name);
         $ft = $request->input('file_type');
-        if(!$request->input('s3_folder_name')){
+        if (!$request->input('s3_folder_name')) {
             return $this->response->fail(
-                array("message"=>'Storage location missing.', 'errors'=>array('input'=>$request->input()))
+                array("message" => 'Storage location missing.', 'errors' => array('input' => $request->input()))
             );
         }
         $folder = $request->input('s3_folder_name');
         //Does file exist in database?
-        
-        if($this->GetIsFileInDB($name)===false)
-        {
+
+        if ($this->GetIsFileInDB($name) === false) {
             return $this->response->fail(
-                array("message"=>"File '$name' does not exist in the database.  Please check the file name and try again.")
+                array("message" => "File '$name' does not exist in the database.  Please check the file name and try again.")
             );
-            
-        }
-        else 
-        {   
+        } else {
             //Has user provided stimetamp?  If not, get latest
             $ts = ($request->input('time_stamp') ? $request->input('time_stamp') : $this->GetFileTimeStamp($name));
-            if($ts[0]==true){
-                $ts=$ts[1];
-            }else{
+            if ($ts[0] == true) {
+                $ts = $ts[1];
+            } else {
                 return $this->response->fail(
-                    array("message"=>"Unable to find file timestamp in database - please check that the file exists.")
+                    array("message" => "Unable to find file timestamp in database - please check that the file exists.")
                 );
             }
 
-            $r=$this->GetFileExistsOnS3($name, $token, $ts, $ft, $folder);
-            if($r[0]==true)
-            {
+            $r = $this->GetFileExistsOnS3($name, $token, $ts, $ft, $folder);
+            if ($r[0] == true) {
                 //print_r($r);
                 //Get file key 
                 $src = $r[1]['src'];
@@ -297,36 +376,34 @@ class FilesController extends Controller
                 //echo "SRC: $src, LTH: $lth, MTH: $mth, STH: $sth"; die();
                 $exp = now()->addMinutes(20);
 
-                
+
                 $url = Storage::disk('s3')->temporaryUrl($src, $exp);
-                if(strlen($lth)>0){
+                if (strlen($lth) > 0) {
                     $lth_url = Storage::disk('s3')->temporaryUrl($lth, $exp);
-                }else{
+                } else {
                     $lth_url = false;
                 }
 
-                if(strlen($mth)>0){
+                if (strlen($mth) > 0) {
                     $mth_url = Storage::disk('s3')->temporaryUrl($mth, $exp);
-                }else{
+                } else {
                     $mth_url = false;
                 }
 
-                if(strlen($sth)>0){
+                if (strlen($sth) > 0) {
                     $sth_url = Storage::disk('s3')->temporaryUrl($sth, $exp);
-                }else{
+                } else {
                     $sth_url = false;
                 }
 
-                $data=array('src'=>$url, 'thumbnails'=>array('large'=>$lth_url, 'medium'=>$mth_url, 'small'=>$sth_url));
-                
+                $data = array('src' => $url, 'thumbnails' => array('large' => $lth_url, 'medium' => $mth_url, 'small' => $sth_url));
+
                 return $this->response->success(
-                    array("message"=>"File retrieved, temporarily URL expires at: ".date("d/m/Y H:i", $exp->getTimeStamp()), 'data'=>$data)
+                    array("message" => "File retrieved, temporarily URL expires at: " . date("d/m/Y H:i", $exp->getTimeStamp()), 'data' => $data)
                 );
-            }
-            else
-            {
+            } else {
                 return $this->response->fail(
-                    array("message"=>"File 'images/".strtolower(str_replace(' ','-', $folder))."/$token/$ft/$ts/$name' does not exist in the S3 bucket.  Please check the file name and try again.")
+                    array("message" => "File 'images/" . strtolower(str_replace(' ', '-', $folder)) . "/$token/$ft/$ts/$name' does not exist in the S3 bucket.  Please check the file name and try again.")
                 );
             }
         }
@@ -352,71 +429,58 @@ class FilesController extends Controller
         $name = $this->sanitize_file_name($request->input('file_name'));
         $token = $this->GetFileUniqueToken($name);
         $ft = $request->input('file_type');
-        if($this->GetIsFileInDB($name)===false)
-        {
+        if ($this->GetIsFileInDB($name) === false) {
             return $this->response->fail(
-                array("message"=>"File does not exist in the database.  Please check the file name and try again.")
-            );   
-        }
-        else 
-        {
-            if(!$request->input('s3_folder_name')){
+                array("message" => "File does not exist in the database.  Please check the file name and try again.")
+            );
+        } else {
+            if (!$request->input('s3_folder_name')) {
                 return $this->response->fail(
-                    array("message"=>'Storage location missing.', 'errors'=>array('input'=>$request->input))
+                    array("message" => 'Storage location missing.', 'errors' => array('input' => $request->input))
                 );
             }
             $folder = $request->input('s3_folder_name');
             $ts = ($request->input('time_stamp') ? $request->input('time_stamp') : $this->GetFileTimeStamp($name));
-            if($ts[0]==true){
-                $ts=$ts[1];
-            }else{
+            if ($ts[0] == true) {
+                $ts = $ts[1];
+            } else {
                 return $this->response->fail(
-                    array("message"=>"Unable to find file timestamp in database - please check that the file exists.")
+                    array("message" => "Unable to find file timestamp in database - please check that the file exists.")
                 );
             }
-            $r = $this->GetFileExistsOnS3($name, $token, $ts, $ft, $folder); 
-            if($r[0])
-            {
+            $r = $this->GetFileExistsOnS3($name, $token, $ts, $ft, $folder);
+            if ($r[0]) {
                 //Delete from S3
-                $r= Storage::disk('s3')->delete($r[1]['src']);
+                $r = Storage::disk('s3')->delete($r[1]['src']);
                 //Delete thumbs
-                Storage::disk('s3')->deleteDirectory('images/'.strtolower(str_replace(' ','-', $folder)).'/'.$token.'/'.$ft.'/'.$ts.'/thumbs');
+                Storage::disk('s3')->deleteDirectory('images/' . strtolower(str_replace(' ', '-', $folder)) . '/' . $token . '/' . $ft . '/' . $ts . '/thumbs');
 
                 //We don't strictly need to know if the file has been removed or not.  We can assume that it has either been deleted, or that it was never there to begin with.
                 //Either way, we still need to proceed with removing the file from the database.
-                $r=$this->FlagFileAsDeleted($name);
-                if($r==true)
-                {   
+                $r = $this->FlagFileAsDeleted($name);
+                if ($r == true) {
                     return $this->response->success(
-                        array("message"=>"File Deleted Successfully")
+                        array("message" => "File Deleted Successfully")
+                    );
+                } else {
+                    return $this->response->fail(
+                        array("message" => "File does not exist in the database.  Please check the file name and try again.")
                     );
                 }
-                else
-                {
-                    return $this->response->fail(
-                        array("message"=>"File does not exist in the database.  Please check the file name and try again.")
-                    );  
-                }
-            }
-            else
-            {
+            } else {
                 //If it doesn't exist on the S3 bucket, we can just strip out the file table.
-                $r=$this->FlagFileAsDeleted($name);
-                if($r==true)
-                {
+                $r = $this->FlagFileAsDeleted($name);
+                if ($r == true) {
                     return $this->response->success(
-                        array("message"=>"File Deleted Successfully")
+                        array("message" => "File Deleted Successfully")
                     );
-                }
-                else
-                {
+                } else {
                     return $this->response->fail(
-                        array("message"=>"File does not exist in the database.  Please check the file name and try again.")
-                    );  
+                        array("message" => "File does not exist in the database.  Please check the file name and try again.")
+                    );
                 }
             }
         }
-        
     }
 
     /**
@@ -438,32 +502,28 @@ class FilesController extends Controller
         $headers = $request->input('header_data');
         $body = $request->input('body_data');
         $delim = ',';
-        $file_name = env('APP_NAME').'_'.date('Y-m-d_H-i-s').'.csv';
+        $file_name = env('APP_NAME') . '_' . date('Y-m-d_H-i-s') . '.csv';
 
 
-        if($request->input('file_name')){
+        if ($request->input('file_name')) {
             //Trim .csv in case idiots
-            $file_name = str_replace('.csv','',$request->input('file_name')).'.csv';
+            $file_name = str_replace('.csv', '', $request->input('file_name')) . '.csv';
         }
-        if($request->input('delimeter')){
+        if ($request->input('delimeter')) {
             //Set new delimeter if it has been sent.
             $delim = $request->input('delimeter');
         }
         //Upload CSV to S3 and return secure link.
         $upload_csv = $this->CreateAndUploadCSV($headers, $body, $file_name, $delim);
 
-        if($upload_csv[0])
-        {
+        if ($upload_csv[0]) {
             return $this->response->success(
-                array("message"=>"CSV generated successfully, URL is live for the next minute.", 'data'=>$upload_csv[1])
+                array("message" => "CSV generated successfully, URL is live for the next minute.", 'data' => $upload_csv[1])
             );
-        }
-        else
-        {
+        } else {
             return $this->response->fail(
-                array("message"=>"Unable to generate CSV at this time.", 'error'=>$upload_csv[1])
+                array("message" => "Unable to generate CSV at this time.", 'error' => $upload_csv[1])
             );
         }
     }
-
 }

@@ -1,17 +1,17 @@
 <?php
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::group(['namespace'=>'Limeworx\FileHandler\Http\Controllers'], function(){
+Route::group(['namespace' => 'Limeworx\FileHandler\Http\Controllers'], function () {
 
     Route::middleware('auth:api')->group(function () {
         Route::post('api/file', 'FilesController@UploadFile');
+        Route::post('api/pdf-upload', 'FilesController@UploadFilePdf');
         Route::get('api/file', 'FilesController@GetFile');
         Route::post('api/file/stream', 'FilesController@StreamFileToServer');
-        Route::delete('api/file', 'FilesController@DeleteFile'); 
+        Route::delete('api/file', 'FilesController@DeleteFile');
 
         Route::post('api/file/csv', 'FilesController@CreateAndDownloadCSV');
     });
-
 });
- 
